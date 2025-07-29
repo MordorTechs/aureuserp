@@ -2,7 +2,6 @@
 .github
 .idea
 .env
-.env.example
 .editorconfig
 .styleci.yml
 .gitattributes
