@@ -67,7 +67,7 @@ RUN rm /etc/nginx/sites-enabled/default \
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Expõe a porta 80 para acesso via HTTP
-EXPOSE 80
+EXPOSE 8080
 
 # Inicia o Supervisor, que por sua vez iniciará o Nginx e o PHP-FPM
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
