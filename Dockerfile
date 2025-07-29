@@ -51,14 +51,13 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 RUN npm install && npm run build
 
 # --- CORREÇÃO IMPORTANTE ---
-# Executa as migrations no banco de dados em memória forçadamente para evitar o prompt de produção.
-RUN php artisan migrate --force
-
-# Otimiza o Laravel para produção
-RUN php artisan optimize:clear
-RUN php artisan config:cache
-RUN php artisan route:cache
-RUN php artisan view:cache
+# Executa as migrations e os comandos de otimização na mesma camada (RUN)
+# para que eles compartilhem o mesmo banco de dados em memória.
+RUN php artisan migrate --force && \
+    php artisan optimize:clear && \
+    php artisan config:cache && \
+    php artisan route:cache && \
+    php artisan view:cache
 
 # ---- Estágio 2: Produção ----
 # Usamos uma imagem limpa e leve para a aplicação final
