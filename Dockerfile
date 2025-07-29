@@ -48,11 +48,12 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 RUN npm install && npm run build
 
 # --- CORREÇÃO IMPORTANTE ---
-# Otimiza apenas os caches que não dependem de uma conexão com o banco de dados.
+# Força o uso do driver 'array' para cache e sessão durante o build para evitar qualquer conexão com o banco de dados.
 # A chave da aplicação (APP_KEY) será fornecida como variável de ambiente no Cloud Run.
-RUN php artisan config:cache && \
-    php artisan route:cache && \
-    php artisan view:cache
+RUN APP_KEY=$(php artisan key:generate --show --force) && \
+    php artisan config:cache --env=production --no-interaction -n && \
+    php artisan route:cache --env=production --no-interaction -n && \
+    php artisan view:cache --env=production --no-interaction -n
 
 # ---- Estágio 2: Produção ----
 # Usamos uma imagem limpa e leve para a aplicação final
