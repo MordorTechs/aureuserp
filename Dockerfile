@@ -33,6 +33,10 @@ COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 # O .dockerignore deve ser configurado para excluir o diretório vendor e node_modules
 COPY . .
 
+# Cria o arquivo database.sqlite se ele não existir
+# Isso é necessário para aplicações Laravel que usam SQLite como banco de dados.
+RUN touch database/database.sqlite
+
 # Define as permissões para o diretório de armazenamento e cache
 # Isso é crucial para que o Laravel possa gravar arquivos de log, cache, sessões, etc.
 RUN chown -R www-data:www-data /var/www/html/storage \
