@@ -22,8 +22,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala as extensões PHP
-# Adicionada a extensão 'intl' para resolver o erro.
-RUN docker-php-ext-install pdo pdo_pgsql zip gd intl
+# Adicionada a extensão 'intl' e 'pdo_mysql' para resolver os erros.
+RUN docker-php-ext-install pdo pdo_pgsql zip gd intl pdo_mysql
 
 # Instala o Composer
 # Baixa o instalador do Composer, verifica sua integridade e move para /usr/local/bin
@@ -36,7 +36,7 @@ COPY . .
 # Cria um arquivo .env temporário com a conexão MySQL para o processo de build
 # Isso evita que o Laravel tente usar o SQLite durante a fase de build.
 RUN echo "APP_ENV=production" > .env \
-    && echo "APP_KEY=base64:gFcfjBQHF+MpEcifj4v6DHN5ayj9mN8bFX6O9LhvPHY=" >> .env \
+    && echo "APP_KEY=base64:YOUR_APP_KEY_HERE" >> .env \
     && echo "DB_CONNECTION=mysql" >> .env \
     && echo "DB_HOST=localhost" >> .env \
     && echo "DB_PORT=3306" >> .env \
