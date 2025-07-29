@@ -42,6 +42,12 @@ RUN echo "APP_ENV=production" > .env \
     && echo "DB_DATABASE=/var/www/html/database/database.sqlite" >> .env \
     && touch database/database.sqlite # Cria o arquivo SQLite para o build
 
+# Cria o diretório para o socket do PHP-FPM e define as permissões corretas
+# Isso garante que o Nginx possa encontrar e acessar o socket.
+RUN mkdir -p /var/run/php \
+    && chown -R www-data:www-data /var/run/php \
+    && chmod -R 775 /var/run/php
+
 # Define as permissões para o diretório de armazenamento e cache
 # Isso é crucial para que o Laravel possa gravar arquivos de log, cache, sessões, etc.
 RUN chown -R www-data:www-data /var/www/html/storage \
