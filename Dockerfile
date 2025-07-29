@@ -31,39 +31,38 @@ RUN apk add --no-cache \
     npm \
     git
 
+# --- CORREÇÃO IMPORTANTE ---
+# Garante que o comando 'php' aponte para a versão 8.2 em todo o estágio de build
+RUN ln -sf /usr/bin/php82 /usr/bin/php
+
 # Define o diretório de trabalho
 WORKDIR /var/www
 
 # Copia todos os arquivos da aplicação
 COPY . .
 
-# --- CORREÇÃO IMPORTANTE ---
-# Executa todos os passos de build em uma única camada, chamando 'php82' explicitamente.
+# Executa todos os passos de build em uma única camada para garantir a consistência do ambiente temporário.
 RUN set -e && \
     echo "Creating temporary .env file and database for build..." && \
     touch database/database.sqlite && \
-    echo "APP_KEY=" > .env && \
-    echo "DB_CONNECTION=sqlite" >> .env && \
-    echo "DB_DATABASE=/var/www/database/database.sqlite" >> .env && \
-    echo "CACHE_DRIVER=array" >> .env && \
-    echo "SESSION_DRIVER=array" >> .env && \
+    cp .env.example .env && \
     \
-    echo "Installing Composer dependencies with PHP 8.2..." && \
-    php82 /usr/bin/composer install --no-interaction --optimize-autoloader --no-dev && \
+    echo "Installing Composer dependencies..." && \
+    composer install --no-interaction --optimize-autoloader --no-dev && \
     \
-    echo "Generating application key with PHP 8.2..." && \
-    php82 artisan key:generate --force && \
+    echo "Generating application key..." && \
+    php artisan key:generate --force && \
     \
     echo "Building frontend assets..." && \
     npm install && npm run build && \
     \
-    echo "Running migrations on temporary database with PHP 8.2..." && \
-    php82 artisan migrate --force && \
+    echo "Running migrations on temporary database..." && \
+    php artisan migrate --force && \
     \
-    echo "Optimizing Laravel application with PHP 8.2..." && \
-    php82 artisan config:cache && \
-    php82 artisan route:cache && \
-    php82 artisan view:cache && \
+    echo "Optimizing Laravel application..." && \
+    php artisan config:cache && \
+    php artisan route:cache && \
+    php artisan view:cache && \
     \
     echo "Cleaning up temporary build files..." && \
     rm .env database/database.sqlite
