@@ -30,26 +30,22 @@ RUN apk add --no-cache \
     npm \
     git
 
-# --- CORREÇÃO IMPORTANTE ---
 # Garante que o comando 'php' aponte para a versão 8.2
 RUN ln -sf /usr/bin/php82 /usr/bin/php
 
 # Define o diretório de trabalho
 WORKDIR /var/www
 
-# Copia os arquivos de dependência
-COPY composer.json composer.lock ./
-
-# Limpa o cache do Composer e instala as dependências, ignorando requisitos de plataforma
-# A flag --ignore-platform-reqs pode resolver problemas quando o composer.lock foi gerado em um ambiente diferente
-RUN composer clear-cache && \
-    composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
-
-# Copia os arquivos da aplicação
+# --- CORREÇÃO IMPORTANTE ---
+# Copia todos os arquivos da aplicação ANTES de instalar as dependências.
+# Isso garante que o script 'artisan' esteja disponível para os hooks do Composer.
 COPY . .
 
+# Instala as dependências do Composer
+# A flag --ignore-platform-reqs pode resolver problemas quando o composer.lock foi gerado em um ambiente diferente
+RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
+
 # Instala dependências do front-end e compila os assets
-COPY package.json package-lock.json ./
 RUN npm install && npm run build
 
 # Otimiza o Laravel para produção
@@ -86,7 +82,6 @@ RUN apk add --no-cache \
     nginx \
     supervisor
 
-# --- CORREÇÃO IMPORTANTE ---
 # Garante que o comando 'php' aponte para a versão 8.2 na imagem final
 RUN ln -sf /usr/bin/php82 /usr/bin/php
 
