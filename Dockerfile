@@ -66,7 +66,7 @@ RUN rm /etc/nginx/sites-enabled/default \
 # Assume que você tem um arquivo supervisord.conf no diretório docker/supervisord.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Expõe a porta 80 para acesso via HTTP
+# Expõe a porta 8080 para acesso via HTTP, conforme exigido pelo Google Cloud Run
 EXPOSE 8080
 
 # Inicia o Supervisor, que por sua vez iniciará o Nginx e o PHP-FPM
