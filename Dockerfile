@@ -2,7 +2,7 @@
 # Usamos uma imagem base Alpine Linux
 FROM alpine:3.18 as builder
 
-# Define variáveis de ambiente para o PHP
+# Define variáveis de ambiente para o PHP (mantido para boa prática, mas chamaremos php82 explicitamente)
 ENV PATH="/usr/bin:${PATH}"
 
 # Instala dependências do sistema, incluindo PHP 8.2 e suas extensões necessárias
@@ -37,12 +37,11 @@ RUN apk add --no-cache \
     freetype-dev \
     icu-dev
 
-# Garante que o comando 'php' aponte para php82
-# Este comando é crucial para que 'php artisan' e 'composer' usem a versão correta
-RUN ln -sf /usr/bin/php82 /usr/bin/php
+# Removendo o symlink, pois agora chamaremos php82 explicitamente
+# RUN ln -sf /usr/bin/php82 /usr/bin/php
 
 # Verifica a versão do PHP para depuração (saída no log de build)
-RUN php -v
+RUN php82 -v
 
 # Define o diretório de trabalho
 WORKDIR /var/www
@@ -51,9 +50,9 @@ WORKDIR /var/www
 COPY composer.json composer.lock ./
 
 # Limpa o cache do Composer e instala as dependências
-# Isso ajuda a evitar problemas com caches antigos de versões PHP incorretas
-RUN composer clear-cache && \
-    composer install --no-interaction --optimize-autoloader --no-dev
+# Chamando 'composer' com 'php82' explicitamente para garantir a versão correta
+RUN php82 /usr/bin/composer clear-cache && \
+    php82 /usr/bin/composer install --no-interaction --optimize-autoloader --no-dev
 
 # Copia o restante dos arquivos da aplicação
 COPY . .
@@ -63,10 +62,11 @@ COPY package.json package-lock.json ./
 RUN npm install && npm run build
 
 # Otimiza o Laravel para produção
-RUN php artisan optimize:clear
-RUN php artisan config:cache
-RUN php artisan route:cache
-RUN php artisan view:cache
+# Chamando 'artisan' com 'php82' explicitamente
+RUN php82 artisan optimize:clear
+RUN php82 artisan config:cache
+RUN php82 artisan route:cache
+RUN php82 artisan view:cache
 
 # ---- Estágio 2: Produção ----
 # Usamos uma imagem limpa e leve para a aplicação final
@@ -94,6 +94,7 @@ RUN apk add --no-cache \
     supervisor
 
 # Garante que o comando 'php' aponte para php82 também no estágio de produção
+# Este symlink é mantido aqui para garantir que qualquer chamada genérica 'php' no ambiente de execução use php82
 RUN ln -sf /usr/bin/php82 /usr/bin/php
 
 # Define o diretório de trabalho
