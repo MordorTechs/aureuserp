@@ -2,7 +2,7 @@
 # Usamos uma imagem com PHP e Node.js para construir a aplicação
 FROM alpine:3.18 as builder
 
-# Instala dependências do sistema, incluindo extensões extras para maior compatibilidade
+# Instala dependências do sistema
 RUN apk add --no-cache \
     php82 \
     php82-fpm \
@@ -37,25 +37,22 @@ RUN ln -sf /usr/bin/php82 /usr/bin/php
 # Define o diretório de trabalho
 WORKDIR /var/www
 
-# Copia todos os arquivos da aplicação ANTES de instalar as dependências.
+# Copia todos os arquivos da aplicação
 COPY . .
 
-# Configura um banco de dados SQLite em memória APENAS para o processo de build.
-ENV DB_CONNECTION=sqlite
-ENV DB_DATABASE=:memory:
-
 # Instala as dependências do Composer
+# A flag --ignore-platform-reqs pode resolver problemas quando o composer.lock foi gerado em um ambiente diferente
 RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
 
 # Instala dependências do front-end e compila os assets
 RUN npm install && npm run build
 
 # --- CORREÇÃO IMPORTANTE ---
-# Executa as migrations e os comandos de otimização na mesma camada (RUN)
-# para que eles compartilhem o mesmo banco de dados em memória.
-RUN php artisan migrate --force && \
-    php artisan optimize:clear && \
-    php artisan config:cache && \
+# Geramos a chave da aplicação aqui para que os caches possam ser criados corretamente.
+RUN php artisan key:generate --force
+
+# Otimiza os caches que não dependem de banco de dados.
+RUN php artisan config:cache && \
     php artisan route:cache && \
     php artisan view:cache
 
