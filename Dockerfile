@@ -1,116 +1,89 @@
-# ---- Estágio 1: Builder ----
-# Usamos uma imagem base Alpine Linux
-FROM alpine:3.18 as builder
+#
+# Dockerfile para Aplicação Laravel (Krayin CRM) - Otimizado para Cloud Run
+#
 
-# Define variáveis de ambiente para o PHP (mantido para boa prática, mas chamaremos php82 explicitamente)
-ENV PATH="/usr/bin:${PATH}"
+# --- ESTÁGIO 1: Base ---
+# Usamos uma imagem base com PHP 8.2 e FPM.
+FROM php:8.2-fpm as base
 
-# Instala dependências do sistema, incluindo PHP 8.2 e suas extensões necessárias
-RUN apk add --no-cache \
-    php82 \
-    php82-fpm \
-    php82-pdo \
-    php82-pdo_mysql \
-    php82-tokenizer \
-    php82-xml \
-    php82-dom \
-    php82-xmlwriter \
-    php82-ctype \
-    php82-mbstring \
-    php82-openssl \
-    php82-gd \
-    php82-curl \
-    php82-zip \
-    php82-intl \
-    php82-bcmath \
-    php82-fileinfo \
-    php82-session \
-    composer \
-    nodejs \
-    npm \
+# Define o diretório de trabalho
+WORKDIR /var/www
+
+# Instala dependências do sistema, Nginx, Supervisor e extensões PHP.
+RUN apt-get update && apt-get install -y \
     git \
-    # Adicionando dependências de desenvolvimento que podem ser necessárias para extensões
-    libxml2-dev \
+    curl \
+    unzip \
+    zip \
+    nginx \
+    supervisor \
     libzip-dev \
     libpng-dev \
-    jpeg-dev \
-    freetype-dev \
-    icu-dev
+    libjpeg-dev \
+    libfreetype6-dev \
+    libonig-dev \
+    libxml2-dev \
+    libicu-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) gd pdo pdo_mysql mbstring exif pcntl bcmath zip intl calendar sockets
 
-# Verifica a versão do PHP para depuração (saída no log de build)
-RUN php82 -v
+# Instala o Composer globalmente
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Define o diretório de trabalho
-WORKDIR /var/www
+# Copia o arquivo .env.example para .env.
+COPY .env.example .env
 
-# Copia o restante dos arquivos da aplicação, incluindo composer.json e composer.lock
-# O .dockerignore garantirá que 'vendor' e 'node_modules' não sejam copiados neste momento,
-# pois serão gerados no container.
+# --- ESTÁGIO 2: Builder ---
+# Este estágio é responsável por instalar todas as dependências (PHP e JS) e compilar os assets.
+FROM base as builder
+
+# Instala Node.js e NPM.
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
+
+# Copia os arquivos de definição de dependências.
+COPY composer.json composer.lock ./
+COPY package.json ./
+
+# Copia todos os arquivos da aplicação ANTES de rodar o composer install.
 COPY . .
 
-# Limpa o cache do Composer e instala as dependências.
-# Este passo agora ocorre DEPOIS que todo o código da aplicação foi copiado.
-# Chamando 'composer' com 'php82' explicitamente para garantir a versão correta
-RUN php82 /usr/bin/composer clear-cache && \
-    php82 /usr/bin/composer install --no-interaction --optimize-autoloader --no-dev
+# Instala as dependências do PHP.
+RUN composer install --no-interaction --optimize-autoloader --no-dev
 
-# Instala dependências do front-end e compila os assets
-# Este passo também ocorre DEPOIS que todo o código da aplicação foi copiado.
-RUN npm install && npm run build
+# Instala as dependências do Node e compila os assets.
+RUN npm install
+RUN npm run build
 
-# Otimiza o Laravel para produção
-# Chamando 'artisan' com 'php82' explicitamente
-RUN php82 artisan optimize:clear
-RUN php82 artisan config:cache
-RUN php82 artisan route:cache
-RUN php82 artisan view:cache
+# Limpa o cache.
+RUN php artisan optimize:clear
 
-# ---- Estágio 2: Produção ----
-# Usamos uma imagem limpa e leve para a aplicação final
-FROM alpine:3.18
+# --- ESTÁGIO 3: Produção ---
+# Este é o estágio final que irá gerar a imagem limpa e otimizada para o Cloud Run.
+FROM base as production
 
-# Instala apenas as dependências necessárias para rodar a aplicação em produção
-RUN apk add --no-cache \
-    php82 \
-    php82-fpm \
-    php82-pdo \
-    php82-pdo_mysql \
-    php82-tokenizer \
-    php82-xml \
-    php82-ctype \
-    php82-mbstring \
-    php82-openssl \
-    php82-gd \
-    php82-curl \
-    php82-zip \
-    php82-intl \
-    php82-bcmath \
-    php82-fileinfo \
-    php82-session \
-    nginx \
-    supervisor
-
-# Garante que o comando 'php' aponte para php82 também no estágio de produção
-# Este symlink é mantido aqui para garantir que qualquer chamada genérica 'php' no ambiente de execução use php82
-RUN ln -sf /usr/bin/php82 /usr/bin/php
-
-# Define o diretório de trabalho
-WORKDIR /var/www
-
-# Copia os arquivos construídos do estágio anterior
-# Isso inclui o diretório 'vendor' que foi gerado no estágio 'builder'
+# Copia o código da aplicação e as dependências do estágio 'builder'.
 COPY --from=builder /var/www .
 
-# Copia os arquivos de configuração do Nginx e Supervisor
-COPY docker/nginx.conf /etc/nginx/nginx.conf
-COPY docker/supervisord.conf /etc/supervisord.conf
+# Copia os arquivos de configuração do Nginx e do Supervisor.
+COPY nginx.conf /etc/nginx/sites-available/default
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Ajusta permissões das pastas para o usuário www-data
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache && \
-    chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+# Copia o script de inicialização e o torna executável.
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Expõe a porta que o Cloud Run usará
+# Define o usuário 'www-data' como dono dos diretórios e ajusta as permissões.
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
+    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+
+# Expõe a porta 8080, que é a porta padrão que o Cloud Run espera.
 EXPOSE 8080
 
-# Comando para iniciar o Supervisor, que gerencia Nginx e PHP-FPM
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# Define o script de inicialização como o ponto de entrada do contêiner.
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# O comando para iniciar o Supervisor, que por sua vez iniciará o Nginx e o PHP-FPM.
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
