@@ -51,8 +51,8 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 RUN npm install && npm run build
 
 # --- CORREÇÃO IMPORTANTE ---
-# Executa as migrations no banco de dados em memória para criar as tabelas necessárias (como 'cache').
-RUN php artisan migrate
+# Executa as migrations no banco de dados em memória forçadamente para evitar o prompt de produção.
+RUN php artisan migrate --force
 
 # Otimiza o Laravel para produção
 RUN php artisan optimize:clear
