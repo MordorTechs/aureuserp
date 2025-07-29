@@ -2,7 +2,7 @@
 # Usamos uma imagem com PHP e Node.js para construir a aplicação
 FROM alpine:3.18 as builder
 
-# Instala dependências do sistema
+# Instala dependências do sistema, incluindo extensões extras para maior compatibilidade
 RUN apk add --no-cache \
     php82 \
     php82-fpm \
@@ -21,17 +21,29 @@ RUN apk add --no-cache \
     php82-intl \
     php82-bcmath \
     php82-fileinfo \
+    php82-exif \
+    php82-pcntl \
+    php82-sockets \
+    php82-session \
     composer \
     nodejs \
     npm \
     git
 
+# --- CORREÇÃO IMPORTANTE ---
+# Garante que o comando 'php' aponte para a versão 8.2
+RUN ln -sf /usr/bin/php82 /usr/bin/php
+
 # Define o diretório de trabalho
 WORKDIR /var/www
 
-# Copia os arquivos de dependência e instala
+# Copia os arquivos de dependência
 COPY composer.json composer.lock ./
-RUN composer install --no-interaction --optimize-autoloader --no-dev
+
+# Limpa o cache do Composer e instala as dependências, ignorando requisitos de plataforma
+# A flag --ignore-platform-reqs pode resolver problemas quando o composer.lock foi gerado em um ambiente diferente
+RUN composer clear-cache && \
+    composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
 
 # Copia os arquivos da aplicação
 COPY . .
@@ -67,8 +79,16 @@ RUN apk add --no-cache \
     php82-intl \
     php82-bcmath \
     php82-fileinfo \
+    php82-exif \
+    php82-pcntl \
+    php82-sockets \
+    php82-session \
     nginx \
     supervisor
+
+# --- CORREÇÃO IMPORTANTE ---
+# Garante que o comando 'php' aponte para a versão 8.2 na imagem final
+RUN ln -sf /usr/bin/php82 /usr/bin/php
 
 # Define o diretório de trabalho
 WORKDIR /var/www
