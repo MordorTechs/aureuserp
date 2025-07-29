@@ -48,10 +48,8 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 RUN npm install && npm run build
 
 # --- CORREÇÃO IMPORTANTE ---
-# Geramos a chave da aplicação aqui para que os caches possam ser criados corretamente.
-RUN php artisan key:generate --force
-
-# Otimiza os caches que não dependem de banco de dados.
+# Otimiza apenas os caches que não dependem de uma conexão com o banco de dados.
+# A chave da aplicação (APP_KEY) será fornecida como variável de ambiente no Cloud Run.
 RUN php artisan config:cache && \
     php artisan route:cache && \
     php artisan view:cache
