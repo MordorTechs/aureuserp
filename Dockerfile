@@ -40,20 +40,34 @@ WORKDIR /var/www
 # Copia todos os arquivos da aplicação
 COPY . .
 
-# Instala as dependências do Composer
-# A flag --ignore-platform-reqs pode resolver problemas quando o composer.lock foi gerado em um ambiente diferente
-RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
-
-# Instala dependências do front-end e compila os assets
-RUN npm install && npm run build
-
 # --- CORREÇÃO IMPORTANTE ---
-# Força o uso do driver 'array' para cache e sessão durante o build para evitar qualquer conexão com o banco de dados.
-# A chave da aplicação (APP_KEY) será fornecida como variável de ambiente no Cloud Run.
-RUN APP_KEY=$(php artisan key:generate --show --force) && \
-    php artisan config:cache --env=production --no-interaction -n && \
-    php artisan route:cache --env=production --no-interaction -n && \
-    php artisan view:cache --env=production --no-interaction -n
+# Executa todos os passos de build em uma única camada para garantir a consistência do ambiente temporário.
+RUN set -e && \
+    echo "Creating temporary .env file and database for build..." && \
+    touch database/database.sqlite && \
+    echo "APP_KEY=" > .env && \
+    echo "DB_CONNECTION=sqlite" >> .env && \
+    echo "DB_DATABASE=/var/www/database/database.sqlite" >> .env && \
+    echo "CACHE_DRIVER=array" >> .env && \
+    echo "SESSION_DRIVER=array" >> .env && \
+    php artisan key:generate --force && \
+    \
+    echo "Installing Composer dependencies..." && \
+    composer install --no-interaction --optimize-autoloader --no-dev && \
+    \
+    echo "Building frontend assets..." && \
+    npm install && npm run build && \
+    \
+    echo "Running migrations on temporary database..." && \
+    php artisan migrate --force && \
+    \
+    echo "Optimizing Laravel application..." && \
+    php artisan config:cache && \
+    php artisan route:cache && \
+    php artisan view:cache && \
+    \
+    echo "Cleaning up temporary build files..." && \
+    rm .env database/database.sqlite
 
 # ---- Estágio 2: Produção ----
 # Usamos uma imagem limpa e leve para a aplicação final
