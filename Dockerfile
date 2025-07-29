@@ -8,6 +8,7 @@ RUN apk add --no-cache \
     php82-fpm \
     php82-pdo \
     php82-pdo_mysql \
+    php82-pdo_sqlite \
     php82-tokenizer \
     php82-xml \
     php82-dom \
@@ -36,13 +37,16 @@ RUN ln -sf /usr/bin/php82 /usr/bin/php
 # Define o diretório de trabalho
 WORKDIR /var/www
 
-# --- CORREÇÃO IMPORTANTE ---
 # Copia todos os arquivos da aplicação ANTES de instalar as dependências.
-# Isso garante que o script 'artisan' esteja disponível para os hooks do Composer.
 COPY . .
 
+# --- CORREÇÃO IMPORTANTE ---
+# Configura um banco de dados SQLite em memória APENAS para o processo de build.
+# Isso evita a necessidade de um arquivo físico ou uma conexão real com o MySQL durante a compilação.
+ENV DB_CONNECTION=sqlite
+ENV DB_DATABASE=:memory:
+
 # Instala as dependências do Composer
-# A flag --ignore-platform-reqs pode resolver problemas quando o composer.lock foi gerado em um ambiente diferente
 RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
 
 # Instala dependências do front-end e compila os assets
