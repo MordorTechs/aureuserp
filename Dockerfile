@@ -33,6 +33,17 @@ COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 # O .dockerignore deve ser configurado para excluir o diretório vendor e node_modules
 COPY . .
 
+# Cria um arquivo .env temporário com a conexão MySQL para o processo de build
+# Isso evita que o Laravel tente usar o SQLite durante a fase de build.
+RUN echo "APP_ENV=production" > .env \
+    && echo "APP_KEY=base64:gFcfjBQHF+MpEcifj4v6DHN5ayj9mN8bFX6O9LhvPHY=" >> .env \
+    && echo "DB_CONNECTION=mysql" >> .env \
+    && echo "DB_HOST=localhost" >> .env \
+    && echo "DB_PORT=3306" >> .env \
+    && echo "DB_DATABASE=temp_db" >> .env \
+    && echo "DB_USERNAME=temp_user" >> .env \
+    && echo "DB_PASSWORD=temp_password" >> .env
+
 # Define as permissões para o diretório de armazenamento e cache
 # Isso é crucial para que o Laravel possa gravar arquivos de log, cache, sessões, etc.
 RUN chown -R www-data:www-data /var/www/html/storage \
@@ -53,6 +64,10 @@ RUN composer clear-cache \
 # Executa as migrações do banco de dados Laravel
 # O flag --force é necessário para executar em ambiente de produção sem confirmação interativa.
 RUN php artisan migrate --force
+
+# Remove o arquivo .env temporário após o build
+# O arquivo .env real será injetado pelo Cloud Run como variáveis de ambiente em tempo de execução.
+RUN rm .env
 
 # Copia a configuração do Nginx
 # Assume que você tem um arquivo nginx.conf no diretório docker/nginx.conf
