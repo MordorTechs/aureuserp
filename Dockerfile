@@ -27,12 +27,15 @@ RUN apk add --no-cache \
     npm \
     git
 
+# Garante que o comando 'php' aponte para php82
+RUN ln -sf /usr/bin/php82 /usr/bin/php
+
 # Define o diretório de trabalho
 WORKDIR /var/www
 
 # Copia os arquivos de dependência e instala
 COPY composer.json composer.lock ./
-RUN php82 /usr/bin/composer install --no-interaction --optimize-autoloader --no-dev
+RUN composer install --no-interaction --optimize-autoloader --no-dev
 
 # Copia os arquivos da aplicação
 COPY . .
@@ -71,6 +74,9 @@ RUN apk add --no-cache \
     php82-session \
     nginx \
     supervisor
+
+# Garante que o comando 'php' aponte para php82 também no estágio de produção
+RUN ln -sf /usr/bin/php82 /usr/bin/php
 
 # Define o diretório de trabalho
 WORKDIR /var/www
