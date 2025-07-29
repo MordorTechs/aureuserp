@@ -7,6 +7,7 @@ WORKDIR /var/www/html
 # Instala as dependências do sistema e extensões PHP necessárias
 # Inclui git, unzip, libpq-dev (para PostgreSQL), libpng-dev, libjpeg-dev, libzip-dev
 # e outras extensões PHP comuns para aplicações Laravel.
+# Adicionadas as bibliotecas libicu-dev para resolver o erro 'icu-uc icu-io icu-i18n not found'.
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -17,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     supervisor \
     nginx \
     curl \
+    libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala as extensões PHP
