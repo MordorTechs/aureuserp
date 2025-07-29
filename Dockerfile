@@ -46,7 +46,11 @@ RUN echo "APP_ENV=production" > .env \
 # Isso garante que o Nginx possa encontrar e acessar o socket.
 RUN mkdir -p /var/run/php \
     && chown -R www-data:www-data /var/run/php \
-    && chmod -R 775 /var/run/php
+    && chmod -R 775 /var/run/php \
+    && mkdir -p /var/log/php-fpm # Cria diretório para logs do PHP-FPM
+
+# Copia a configuração personalizada do PHP-FPM
+COPY docker/php-fpm-www.conf /usr/local/etc/php-fpm.d/www.conf
 
 # Define as permissões para o diretório de armazenamento e cache
 # Isso é crucial para que o Laravel possa gravar arquivos de log, cache, sessões, etc.
