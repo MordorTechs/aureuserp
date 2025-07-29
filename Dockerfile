@@ -41,7 +41,7 @@ WORKDIR /var/www
 COPY . .
 
 # --- CORREÇÃO IMPORTANTE ---
-# Executa todos os passos de build em uma única camada para garantir a consistência do ambiente temporário.
+# Executa todos os passos de build em uma única camada com a ordem correta.
 RUN set -e && \
     echo "Creating temporary .env file and database for build..." && \
     touch database/database.sqlite && \
@@ -50,10 +50,12 @@ RUN set -e && \
     echo "DB_DATABASE=/var/www/database/database.sqlite" >> .env && \
     echo "CACHE_DRIVER=array" >> .env && \
     echo "SESSION_DRIVER=array" >> .env && \
-    php artisan key:generate --force && \
     \
     echo "Installing Composer dependencies..." && \
     composer install --no-interaction --optimize-autoloader --no-dev && \
+    \
+    echo "Generating application key..." && \
+    php artisan key:generate --force && \
     \
     echo "Building frontend assets..." && \
     npm install && npm run build && \
