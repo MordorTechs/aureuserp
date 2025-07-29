@@ -21,6 +21,7 @@ RUN apk add --no-cache \
     php82-intl \
     php82-bcmath \
     php82-fileinfo \
+    php82-session \
     composer \
     nodejs \
     npm \
@@ -31,7 +32,7 @@ WORKDIR /var/www
 
 # Copia os arquivos de dependência e instala
 COPY composer.json composer.lock ./
-RUN composer install --no-interaction --optimize-autoloader --no-dev
+RUN php82 /usr/bin/composer install --no-interaction --optimize-autoloader --no-dev
 
 # Copia os arquivos da aplicação
 COPY . .
@@ -67,6 +68,7 @@ RUN apk add --no-cache \
     php82-intl \
     php82-bcmath \
     php82-fileinfo \
+    php82-session \
     nginx \
     supervisor
 
