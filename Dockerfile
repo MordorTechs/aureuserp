@@ -40,9 +40,7 @@ WORKDIR /var/www
 # Copia todos os arquivos da aplicação ANTES de instalar as dependências.
 COPY . .
 
-# --- CORREÇÃO IMPORTANTE ---
 # Configura um banco de dados SQLite em memória APENAS para o processo de build.
-# Isso evita a necessidade de um arquivo físico ou uma conexão real com o MySQL durante a compilação.
 ENV DB_CONNECTION=sqlite
 ENV DB_DATABASE=:memory:
 
@@ -51,6 +49,10 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 
 # Instala dependências do front-end e compila os assets
 RUN npm install && npm run build
+
+# --- CORREÇÃO IMPORTANTE ---
+# Executa as migrations no banco de dados em memória para criar as tabelas necessárias (como 'cache').
+RUN php artisan migrate
 
 # Otimiza o Laravel para produção
 RUN php artisan optimize:clear
