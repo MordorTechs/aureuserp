@@ -33,16 +33,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 # O .dockerignore deve ser configurado para excluir o diretório vendor e node_modules
 COPY . .
 
-# Cria um arquivo .env temporário com a conexão MySQL para o processo de build
-# Isso evita que o Laravel tente usar o SQLite durante a fase de build.
+# Cria um arquivo .env temporário com a conexão SQLite para o processo de build
+# Isso evita que o Laravel tente se conectar a um banco de dados MySQL não existente
+# durante a fase de build, permitindo que os comandos do Composer e Artisan funcionem.
 RUN echo "APP_ENV=production" > .env \
     && echo "APP_KEY=base64:YOUR_APP_KEY_HERE" >> .env \
-    && echo "DB_CONNECTION=mysql" >> .env \
-    && echo "DB_HOST=localhost" >> .env \
-    && echo "DB_PORT=3306" >> .env \
-    && echo "DB_DATABASE=temp_db" >> .env \
-    && echo "DB_USERNAME=temp_user" >> .env \
-    && echo "DB_PASSWORD=temp_password" >> .env
+    && echo "DB_CONNECTION=sqlite" >> .env \
+    && echo "DB_DATABASE=/var/www/html/database/database.sqlite" >> .env \
+    && touch database/database.sqlite # Cria o arquivo SQLite para o build
 
 # Define as permissões para o diretório de armazenamento e cache
 # Isso é crucial para que o Laravel possa gravar arquivos de log, cache, sessões, etc.
@@ -63,11 +61,13 @@ RUN composer clear-cache \
 
 # Executa as migrações do banco de dados Laravel
 # O flag --force é necessário para executar em ambiente de produção sem confirmação interativa.
+# As migrações serão executadas no SQLite temporário.
 RUN php artisan migrate --force
 
-# Remove o arquivo .env temporário após o build
-# O arquivo .env real será injetado pelo Cloud Run como variáveis de ambiente em tempo de execução.
-RUN rm .env
+# Remove o arquivo .env temporário e o arquivo database.sqlite temporário após o build
+# O arquivo .env real e a conexão MySQL serão injetados pelo Cloud Run como variáveis de ambiente em tempo de execução.
+RUN rm .env \
+    && rm database/database.sqlite
 
 # Copia a configuração do Nginx
 # Assume que você tem um arquivo nginx.conf no diretório docker/nginx.conf
