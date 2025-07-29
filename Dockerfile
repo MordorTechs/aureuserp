@@ -1,89 +1,66 @@
-#
-# Dockerfile para Aplicação Laravel (Krayin CRM) - Otimizado para Cloud Run
-#
+# Usa a imagem base do PHP com FPM para a versão 8.2
+FROM php:8.2-fpm
 
-# --- ESTÁGIO 1: Base ---
-# Usamos uma imagem base com PHP 8.2 e FPM.
-FROM php:8.2-fpm as base
+# Define o diretório de trabalho dentro do contêiner
+WORKDIR /var/www/html
 
-# Define o diretório de trabalho
-WORKDIR /var/www
-
-# Instala dependências do sistema, Nginx, Supervisor e extensões PHP.
+# Instala as dependências do sistema e extensões PHP necessárias
+# Inclui git, unzip, libpq-dev (para PostgreSQL), libpng-dev, libjpeg-dev, libzip-dev
+# e outras extensões PHP comuns para aplicações Laravel.
 RUN apt-get update && apt-get install -y \
     git \
-    curl \
     unzip \
-    zip \
-    nginx \
-    supervisor \
-    libzip-dev \
+    libpq-dev \
     libpng-dev \
     libjpeg-dev \
-    libfreetype6-dev \
-    libonig-dev \
-    libxml2-dev \
-    libicu-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd pdo pdo_mysql mbstring exif pcntl bcmath zip intl calendar sockets
+    libzip-dev \
+    supervisor \
+    nginx \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Instala o Composer globalmente
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Instala as extensões PHP
+RUN docker-php-ext-install pdo pdo_pgsql zip gd
 
-# Copia o arquivo .env.example para .env.
-COPY .env.example .env
+# Instala o Composer
+# Baixa o instalador do Composer, verifica sua integridade e move para /usr/local/bin
+COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 
-# --- ESTÁGIO 2: Builder ---
-# Este estágio é responsável por instalar todas as dependências (PHP e JS) e compilar os assets.
-FROM base as builder
-
-# Instala Node.js e NPM.
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs
-
-# Copia os arquivos de definição de dependências.
-COPY composer.json composer.lock ./
-COPY package.json ./
-
-# Copia todos os arquivos da aplicação ANTES de rodar o composer install.
+# Copia os arquivos da aplicação para o diretório de trabalho
+# O .dockerignore deve ser configurado para excluir o diretório vendor e node_modules
 COPY . .
 
-# Instala as dependências do PHP.
-RUN composer install --no-interaction --optimize-autoloader --no-dev
+# Define as permissões para o diretório de armazenamento e cache
+# Isso é crucial para que o Laravel possa gravar arquivos de log, cache, sessões, etc.
+RUN chown -R www-data:www-data /var/www/html/storage \
+    && chown -R www-data:www-data /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage \
+    && chmod -R 775 /var/www/html/bootstrap/cache
 
-# Instala as dependências do Node e compila os assets.
-RUN npm install
-RUN npm run build
+# Limpa o cache do Composer e reinstala as dependências
+# Isso ajuda a resolver problemas de instalação de pacotes corrompidos ou inconsistentes.
+# --no-interaction: Não faz perguntas durante a instalação.
+# --optimize-autoloader: Otimiza o autoloader para melhor desempenho em produção.
+# --no-dev: Não instala pacotes de desenvolvimento.
+RUN composer clear-cache \
+    && rm -rf vendor/ \
+    && rm composer.lock || true \
+    && composer install --no-interaction --optimize-autoloader --no-dev
 
-# Limpa o cache.
-RUN php artisan optimize:clear
+# Copia a configuração do Nginx
+# Assume que você tem um arquivo nginx.conf no diretório docker/nginx.conf
+COPY docker/nginx.conf /etc/nginx/sites-available/default
 
-# --- ESTÁGIO 3: Produção ---
-# Este é o estágio final que irá gerar a imagem limpa e otimizada para o Cloud Run.
-FROM base as production
+# Remove a configuração padrão do Nginx e cria um link simbólico para a nova configuração
+RUN rm /etc/nginx/sites-enabled/default \
+    && ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
-# Copia o código da aplicação e as dependências do estágio 'builder'.
-COPY --from=builder /var/www .
+# Copia a configuração do Supervisor
+# Assume que você tem um arquivo supervisord.conf no diretório docker/supervisord.conf
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Copia os arquivos de configuração do Nginx e do Supervisor.
-COPY nginx.conf /etc/nginx/sites-available/default
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Expõe a porta 80 para acesso via HTTP
+EXPOSE 80
 
-# Copia o script de inicialização e o torna executável.
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-# Define o usuário 'www-data' como dono dos diretórios e ajusta as permissões.
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
-    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
-
-# Expõe a porta 8080, que é a porta padrão que o Cloud Run espera.
-EXPOSE 8080
-
-# Define o script de inicialização como o ponto de entrada do contêiner.
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-
-# O comando para iniciar o Supervisor, que por sua vez iniciará o Nginx e o PHP-FPM.
+# Inicia o Supervisor, que por sua vez iniciará o Nginx e o PHP-FPM
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
