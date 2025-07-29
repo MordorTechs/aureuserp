@@ -37,28 +37,25 @@ RUN apk add --no-cache \
     freetype-dev \
     icu-dev
 
-# Removendo o symlink, pois agora chamaremos php82 explicitamente
-# RUN ln -sf /usr/bin/php82 /usr/bin/php
-
 # Verifica a versão do PHP para depuração (saída no log de build)
 RUN php82 -v
 
 # Define o diretório de trabalho
 WORKDIR /var/www
 
-# Copia os arquivos de dependência do Composer
-COPY composer.json composer.lock ./
+# Copia o restante dos arquivos da aplicação, incluindo composer.json e composer.lock
+# O .dockerignore garantirá que 'vendor' e 'node_modules' não sejam copiados neste momento,
+# pois serão gerados no container.
+COPY . .
 
-# Limpa o cache do Composer e instala as dependências
+# Limpa o cache do Composer e instala as dependências.
+# Este passo agora ocorre DEPOIS que todo o código da aplicação foi copiado.
 # Chamando 'composer' com 'php82' explicitamente para garantir a versão correta
 RUN php82 /usr/bin/composer clear-cache && \
     php82 /usr/bin/composer install --no-interaction --optimize-autoloader --no-dev
 
-# Copia o restante dos arquivos da aplicação
-COPY . .
-
 # Instala dependências do front-end e compila os assets
-COPY package.json package-lock.json ./
+# Este passo também ocorre DEPOIS que todo o código da aplicação foi copiado.
 RUN npm install && npm run build
 
 # Otimiza o Laravel para produção
@@ -101,6 +98,7 @@ RUN ln -sf /usr/bin/php82 /usr/bin/php
 WORKDIR /var/www
 
 # Copia os arquivos construídos do estágio anterior
+# Isso inclui o diretório 'vendor' que foi gerado no estágio 'builder'
 COPY --from=builder /var/www .
 
 # Copia os arquivos de configuração do Nginx e Supervisor
