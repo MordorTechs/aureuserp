@@ -1,8 +1,11 @@
 # ---- Estágio 1: Builder ----
-# Usamos uma imagem com PHP e Node.js para construir a aplicação
+# Usamos uma imagem base Alpine Linux
 FROM alpine:3.18 as builder
 
-# Instala dependências do sistema
+# Define variáveis de ambiente para o PHP
+ENV PATH="/usr/bin:${PATH}"
+
+# Instala dependências do sistema, incluindo PHP 8.2 e suas extensões necessárias
 RUN apk add --no-cache \
     php82 \
     php82-fpm \
@@ -25,19 +28,34 @@ RUN apk add --no-cache \
     composer \
     nodejs \
     npm \
-    git
+    git \
+    # Adicionando dependências de desenvolvimento que podem ser necessárias para extensões
+    libxml2-dev \
+    libzip-dev \
+    libpng-dev \
+    jpeg-dev \
+    freetype-dev \
+    icu-dev
 
 # Garante que o comando 'php' aponte para php82
+# Este comando é crucial para que 'php artisan' e 'composer' usem a versão correta
 RUN ln -sf /usr/bin/php82 /usr/bin/php
+
+# Verifica a versão do PHP para depuração (saída no log de build)
+RUN php -v
 
 # Define o diretório de trabalho
 WORKDIR /var/www
 
-# Copia os arquivos de dependência e instala
+# Copia os arquivos de dependência do Composer
 COPY composer.json composer.lock ./
-RUN composer install --no-interaction --optimize-autoloader --no-dev
 
-# Copia os arquivos da aplicação
+# Limpa o cache do Composer e instala as dependências
+# Isso ajuda a evitar problemas com caches antigos de versões PHP incorretas
+RUN composer clear-cache && \
+    composer install --no-interaction --optimize-autoloader --no-dev
+
+# Copia o restante dos arquivos da aplicação
 COPY . .
 
 # Instala dependências do front-end e compila os assets
@@ -54,7 +72,7 @@ RUN php artisan view:cache
 # Usamos uma imagem limpa e leve para a aplicação final
 FROM alpine:3.18
 
-# Instala apenas as dependências necessárias para rodar
+# Instala apenas as dependências necessárias para rodar a aplicação em produção
 RUN apk add --no-cache \
     php82 \
     php82-fpm \
@@ -88,7 +106,7 @@ COPY --from=builder /var/www .
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisord.conf
 
-# Ajusta permissões das pastas
+# Ajusta permissões das pastas para o usuário www-data
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache && \
     chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
