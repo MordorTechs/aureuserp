@@ -20,7 +20,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala as extensões PHP
-RUN docker-php-ext-install pdo pdo_pgsql zip gd
+# Adicionada a extensão 'intl' para resolver o erro.
+RUN docker-php-ext-install pdo pdo_pgsql zip gd intl
 
 # Instala o Composer
 # Baixa o instalador do Composer, verifica sua integridade e move para /usr/local/bin
